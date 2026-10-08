@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><title>Panel P23</title>
+<style>
+:root{--g:#D6D6D3;--n:#E7E7E5;--k:#000;--s:#3D3D3B}
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,Arial,sans-serif;background:var(--g);color:var(--k)}
+main{max-width:720px;margin:0 auto;padding:1.25rem}h1{font-size:1.4rem;margin:.2rem 0 1rem}h2{font-size:1.1rem}
+.box{background:var(--n);padding:1.1rem;margin-bottom:1rem;border:2px solid var(--k)}
+label{display:block;font-weight:600;margin:.7rem 0 .2rem}
+input,textarea{width:100%;padding:.7rem;border:2px solid var(--k);background:#fff;font:inherit;border-radius:0}
+button{font:inherit;font-weight:600;padding:.7rem 1rem;border:2px solid var(--k);background:var(--k);color:#fff;cursor:pointer;min-height:44px}
+button.l{background:transparent;color:var(--k)}button.x{background:#9B1C1C;border-color:#9B1C1C}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem}.msg{min-height:1.3rem;color:#9B1C1C;font-weight:600}
+.it{display:flex;gap:.8rem;align-items:center;padding:.7rem 0;border-top:1px solid #0003}.it img,.it .t{width:64px;height:80px;object-fit:cover;background:var(--g);flex:none}
+.it b{display:block}.it small{color:var(--s)}.top{display:flex;justify-content:space-between;align-items:center}[hidden]{display:none!important}
+</style></head><body><main>
+<div class="top"><h1>Panel P23</h1><button class="l" id="out" hidden>Cerrar sesión</button></div>
+
+<section id="login" class="box"><h2>Entrar</h2>
+<label for="em">Correo</label><input id="em" type="email" autocomplete="username">
+<label for="pw">Contraseña</label><input id="pw" type="password" autocomplete="current-password">
+<p class="msg" id="lm"></p>
+<div class="row"><button id="go">Entrar</button><button class="l" id="rst">Olvidé mi contraseña</button></div></section>
+
+<section id="app" hidden>
+<div class="box"><h2 id="ft">Agregar prenda</h2>
+<label for="nombre">Nombre</label><input id="nombre">
+<label for="precio">Precio (MXN, solo número)</label><input id="precio" type="number" inputmode="decimal" min="0">
+<label for="tallas">Tallas (ej. S, M, L)</label><input id="tallas">
+<label for="drop">Drop (opcional)</label><input id="drop">
+<label for="desc">Descripción</label><textarea id="desc" rows="3"></textarea>
+<label for="file">Foto</label><input id="file" type="file" accept="image/*"><p class="msg" id="fm"></p>
+<img id="pv" alt="" hidden style="width:96px;margin-top:.4rem">
+<div class="row"><button id="save">Guardar prenda</button><button class="l" id="cancel" hidden>Cancelar edición</button></div></div>
+<div class="box"><h2>Prendas</h2><div id="list"></div></div></section>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,collection,onSnapshot,addDoc,updateDoc,deleteDoc,doc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBdFIb3dhxZMpwT_YGZHbsJkbVimcks-gk",authDomain:"p23originals.firebaseapp.com",projectId:"p23originals",storageBucket:"p23originals.firebasestorage.app",messagingSenderId:"978692456908",appId:"1:978692456908:web:ab4b2b87af0e31db82dd69"});
+const auth=getAuth(app),db=getFirestore(app),col=collection(db,"productos");
+const CLOUD="g7qdei9q",PRESET="p23_fotos";
+const $=i=>document.getElementById(i);let editId=null,foto="",items=[],unsub=null;
+const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const mx=e=>({"auth/invalid-credential":"Correo o contraseña incorrectos.","auth/invalid-email":"Escribe un correo válido.","auth/too-many-requests":"Demasiados intentos. Espera unos minutos."}[e.code]||"No se pudo completar. Intenta de nuevo.");
+
+$("go").onclick=async()=>{$("lm").textContent="";try{await signInWithEmailAndPassword(auth,$("em").value.trim(),$("pw").value)}catch(e){$("lm").textContent=mx(e)}};
+$("rst").onclick=async()=>{const m=$("em").value.trim();if(!m){$("lm").textContent="Escribe tu correo arriba y vuelve a tocar el botón.";return}
+ try{await sendPasswordResetEmail(auth,m);$("lm").style.color="#1a5c1a";$("lm").textContent="Te enviamos un enlace para crear una contraseña nueva."}catch(e){$("lm").textContent=mx(e)}};
+$("out").onclick=()=>signOut(auth);
+
+onAuthStateChanged(auth,u=>{$("login").hidden=!!u;$("app").hidden=!u;$("out").hidden=!u;
+ if(unsub){unsub();unsub=null}
+ if(u)unsub=onSnapshot(col,s=>{items=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.creado?.seconds||0)-(a.creado?.seconds||0));render()},()=>{$("list").textContent="Sin permiso para ver las prendas. Entra con la cuenta autorizada."})});
+
+function render(){$("list").innerHTML=items.length?items.map(p=>`<div class="it">${p.foto?`<img src="${esc(p.foto.replace("/upload/","/upload/w_160,q_auto/"))}" alt="">`:'<div class="t"></div>'}
+<div style="flex:1"><b>${esc(p.nombre)}</b><small>${p.precio?"$"+esc(p.precio)+" MXN":""} ${p.disponible===false?"· Agotada":"· Disponible"}</small>
+<div class="row"><button class="l" data-a="e" data-i="${p.id}">Editar</button><button class="l" data-a="d" data-i="${p.id}">${p.disponible===false?"Marcar disponible":"Marcar agotada"}</button><button class="x" data-a="x" data-i="${p.id}">Eliminar</button></div></div></div>`).join(""):"<p>Aún no hay prendas. Agrega la primera arriba.</p>"}
+
+$("list").onclick=async e=>{const b=e.target.closest("button");if(!b)return;const p=items.find(x=>x.id===b.dataset.i);if(!p)return;
+ if(b.dataset.a==="d")await updateDoc(doc(db,"productos",p.id),{disponible:p.disponible===false});
+ if(b.dataset.a==="x"&&confirm("¿Eliminar "+p.nombre+"? No se puede deshacer."))await deleteDoc(doc(db,"productos",p.id));
+ if(b.dataset.a==="e"){editId=p.id;foto=p.foto||"";$("nombre").value=p.nombre||"";$("precio").value=p.precio||"";$("tallas").value=p.tallas||"";$("drop").value=p.drop||"";$("desc").value=p.descripcion||"";
+  $("pv").src=foto;$("pv").hidden=!foto;$("ft").textContent="Editar prenda";$("cancel").hidden=false;scrollTo({top:0,behavior:"smooth"})}};
+
+function reset(){editId=null;foto="";["nombre","precio","tallas","drop","desc","file"].forEach(i=>$(i).value="");$("pv").hidden=true;$("ft").textContent="Agregar prenda";$("cancel").hidden=true;$("fm").textContent=""}
+$("cancel").onclick=reset;
+
+$("file").onchange=async()=>{const f=$("file").files[0];if(!f)return;$("fm").style.color="#3D3D3B";$("fm").textContent="Subiendo foto…";
+ try{const fd=new FormData();fd.append("file",f);fd.append("upload_preset",PRESET);
+  const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,{method:"POST",body:fd});const j=await r.json();
+  if(!j.secure_url)throw 0;foto=j.secure_url;$("pv").src=foto;$("pv").hidden=false;$("fm").textContent="Foto lista."}
+ catch{$("fm").style.color="#9B1C1C";$("fm").textContent="No se pudo subir la foto. Prueba con otra imagen."}};
+
+$("save").onclick=async()=>{const nombre=$("nombre").value.trim();if(!nombre){alert("Escribe el nombre de la prenda.");return}
+ const d={nombre,precio:Number($("precio").value)||0,tallas:$("tallas").value.trim(),drop:$("drop").value.trim(),descripcion:$("desc").value.trim(),foto};
+ try{if(editId)await updateDoc(doc(db,"productos",editId),d);else await addDoc(col,{...d,disponible:true,creado:serverTimestamp()});reset()}
+ catch{alert("No se pudo guardar. Revisa tu conexión y que hayas entrado con la cuenta autorizada.")}};
+</script></main></body></html>
