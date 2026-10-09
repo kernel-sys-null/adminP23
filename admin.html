@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><title>Panel P23</title>
+<style>
+:root{--g:#D6D6D3;--n:#E7E7E5;--k:#000;--s:#3D3D3B}
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,Arial,sans-serif;background:var(--g);color:var(--k)}
+main{max-width:720px;margin:0 auto;padding:1.25rem}h1{font-size:1.4rem;margin:.2rem 0 1rem}h2{font-size:1.1rem}
+.box{background:var(--n);padding:1.1rem;margin-bottom:1rem;border:2px solid var(--k)}
+label{display:block;font-weight:600;margin:.7rem 0 .2rem}
+input,textarea,select{width:100%;padding:.7rem;border:2px solid var(--k);background:#fff;font:inherit;border-radius:0}
+button{font:inherit;font-weight:600;padding:.7rem 1rem;border:2px solid var(--k);background:var(--k);color:#fff;cursor:pointer;min-height:44px}
+button.l{background:transparent;color:var(--k)}button.x{background:#9B1C1C;border-color:#9B1C1C}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem}.msg{min-height:1.3rem;color:#9B1C1C;font-weight:600}
+.it{display:flex;gap:.8rem;align-items:center;padding:.7rem 0;border-top:1px solid #0003}.it img,.it .t{width:64px;height:80px;object-fit:cover;background:var(--g);flex:none}
+.it b{display:block}.it small{color:var(--s)}.top{display:flex;justify-content:space-between;align-items:center}[hidden]{display:none!important}
+.sk{display:flex;align-items:center;gap:.4rem;margin-top:.5rem}.sk span{font-weight:600;margin-right:.2rem}.sk button{padding:0;width:44px}.sk input{width:84px;text-align:center;padding:.5rem}.sk select{width:auto;flex:1;min-width:0;padding:.5rem}button:disabled{opacity:.35;cursor:default}
+</style></head><body><main>
+<div class="top"><h1>Panel P23</h1><button class="l" id="out" hidden>Cerrar sesión</button></div>
+
+<section id="login" class="box"><h2>Entrar</h2>
+<label for="em">Correo</label><input id="em" type="email" autocomplete="username">
+<label for="pw">Contraseña</label><input id="pw" type="password" autocomplete="current-password">
+<p class="msg" id="lm"></p>
+<div class="row"><button id="go">Entrar</button><button class="l" id="rst">Olvidé mi contraseña</button></div></section>
+
+<section id="app" hidden>
+<div class="box"><h2>Pedidos</h2><div id="ped"></div><details style="margin-top:.8rem"><summary>Pedidos anteriores</summary><div id="hist"></div></details></div>
+<div class="box"><h2>Drops</h2><small style="display:block;color:var(--s)">Los drops son las secciones de la colección en la página. Crea uno y luego asígnale prendas desde el formulario de prenda o desde la lista de Prendas.</small>
+<label for="dnom">Nombre del drop</label><input id="dnom" maxlength="60" placeholder="Ej. Drop 01 · Verano">
+<label for="ddesc">Descripción (opcional)</label><input id="ddesc" maxlength="140">
+<p class="msg" id="dmsg"></p>
+<div class="row"><button id="dsave">Guardar drop</button><button class="l" id="dcancel" hidden>Cancelar edición</button></div>
+<div id="dlist" style="margin-top:.8rem"></div></div>
+<div class="box"><h2 id="ft">Agregar prenda</h2>
+<label for="nombre">Nombre</label><input id="nombre">
+<label for="precio">Precio (MXN, solo número)</label><input id="precio" type="number" inputmode="decimal" min="0">
+<label for="tallas">Tallas (ej. S, M, L)</label><input id="tallas">
+<label for="stock">Piezas disponibles (opcional)</label><input id="stock" type="number" inputmode="numeric" min="0" step="1"><small style="display:block;color:var(--s);margin-top:.3rem">Bajan cuando confirmas el pago de un pedido (botón Pagado) o si las cambias tú. Déjalo vacío si no quieres llevar el conteo.</small>
+<label for="drop">Drop (opcional)</label><select id="drop"><option value="">Sin drop</option></select><small style="display:block;color:var(--s);margin-top:.3rem">Primero crea los drops en la sección Drops de arriba.</small>
+<label for="et">Etiqueta (opcional)</label><select id="et"><option value="">Ninguna</option><option>Nuevo</option><option>Últimas piezas</option></select>
+<label for="desc">Descripción</label><textarea id="desc" rows="3"></textarea>
+<label for="file">Fotos (puedes elegir varias)</label><input id="file" type="file" accept="image/*" multiple><p class="msg" id="fm"></p>
+<img id="pv" alt="" hidden style="width:96px;margin-top:.4rem">
+<div class="row"><button id="save">Guardar prenda</button><button class="l" id="cancel" hidden>Cancelar edición</button></div></div>
+<div class="box"><h2>Prendas</h2><div id="list"></div></div></section>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,collection,onSnapshot,addDoc,updateDoc,deleteDoc,deleteField,increment,runTransaction,writeBatch,doc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBdFIb3dhxZMpwT_YGZHbsJkbVimcks-gk",authDomain:"p23originals.firebaseapp.com",projectId:"p23originals",storageBucket:"p23originals.firebasestorage.app",messagingSenderId:"978692456908",appId:"1:978692456908:web:ab4b2b87af0e31db82dd69"});
+const auth=getAuth(app),db=getFirestore(app),col=collection(db,"productos"),pcol=collection(db,"pedidos"),dcol=collection(db,"drops");
+const CLOUD="g7qdei9q",PRESET="p23_fotos";
+const $=i=>document.getElementById(i);let editId=null,foto="",fotos=[],items=[],unsub=null,unsubP=null,pedidos=[],stock0="",drops=[],unsubD=null,dEdit=null;
+const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const mx=e=>({"auth/invalid-credential":"Correo o contraseña incorrectos.","auth/invalid-email":"Escribe un correo válido.","auth/too-many-requests":"Demasiados intentos. Espera unos minutos."}[e.code]||"No se pudo completar. Intenta de nuevo.");
+
+$("go").onclick=async()=>{$("lm").textContent="";try{await signInWithEmailAndPassword(auth,$("em").value.trim(),$("pw").value)}catch(e){$("lm").textContent=mx(e)}};
+$("rst").onclick=async()=>{const m=$("em").value.trim();if(!m){$("lm").textContent="Escribe tu correo arriba y vuelve a tocar el botón.";return}
+ try{await sendPasswordResetEmail(auth,m);$("lm").style.color="#1a5c1a";$("lm").textContent="Te enviamos un enlace para crear una contraseña nueva."}catch(e){$("lm").textContent=mx(e)}};
+$("out").onclick=()=>signOut(auth);
+
+onAuthStateChanged(auth,u=>{$("login").hidden=!!u;$("app").hidden=!u;$("out").hidden=!u;
+ if(unsub){unsub();unsub=null}if(unsubP){unsubP();unsubP=null}if(unsubD){unsubD();unsubD=null}
+ if(u)unsubD=onSnapshot(dcol,s=>{drops=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.orden??999)-(b.orden??999)||(b.creado?.seconds||0)-(a.creado?.seconds||0));fillDrops();paintAll()},()=>{$("dlist").textContent="Sin permiso para ver los drops. Publica las reglas de Firestore para drops."});
+ if(u)unsubP=onSnapshot(pcol,s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.creado?.seconds||0)-(a.creado?.seconds||0));renderP()},()=>{$("ped").textContent="Sin permiso para ver los pedidos. Publica las reglas nuevas de Firestore."});
+ if(u)unsub=onSnapshot(col,s=>{items=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.creado?.seconds||0)-(a.creado?.seconds||0));paintAll()},()=>{$("list").textContent="Sin permiso para ver las prendas. Entra con la cuenta autorizada."})});
+
+const sold=p=>p.disponible===false||(typeof p.stock==="number"&&p.stock<=0);
+function norm(t){return String(t??"").trim().toLowerCase()}
+function dropOf(p){const d=drops.find(x=>x.id===p.dropId)||drops.find(x=>norm(x.nombre)===norm(p.drop));return d?d.id:""}
+function opts(v){return '<option value="">Sin drop</option>'+drops.map(d=>'<option value="'+esc(d.id)+'"'+(d.id===v?" selected":"")+'>'+esc(d.nombre)+'</option>').join("")}
+function fillDrops(){const s=$("drop"),v=s.value;s.innerHTML=opts(v)}
+function paintAll(){if(!document.activeElement?.matches?.(".sk input,select.dp"))render();renderD()}
+function renderD(){$("dlist").innerHTML=drops.length?drops.map((d,i)=>`<div class="it"><div style="flex:1"><b>${esc(d.nombre)}</b><small>${esc(d.descripcion||"")}${d.descripcion?" · ":""}${items.filter(p=>dropOf(p)===d.id).length} prenda(s)</small>
+<div class="row"><button class="l" data-d="u" data-i="${d.id}" aria-label="Subir drop"${i?"":" disabled"}>↑</button><button class="l" data-d="w" data-i="${d.id}" aria-label="Bajar drop"${i<drops.length-1?"":" disabled"}>↓</button><button class="l" data-d="e" data-i="${d.id}">Editar</button><button class="x" data-d="x" data-i="${d.id}">Eliminar</button></div></div></div>`).join(""):"<p>Aún no hay drops. Crea el primero arriba.</p>"}
+const ref=id=>doc(db,"productos",id),flip=(p,n)=>n>0&&p.disponible===false&&!(p.stock>0)?{disponible:true}:{};
+const errS="No se pudo actualizar las piezas. Revisa tu conexión y que hayas entrado con la cuenta autorizada.";
+function render(){$("list").innerHTML=items.length?items.map(p=>`<div class="it">${p.foto?`<img src="${esc(p.foto.replace("/upload/","/upload/w_160,q_auto/"))}" alt="">`:'<div class="t"></div>'}
+<div style="flex:1"><b>${esc(p.nombre)}</b><small>${p.precio?"$"+esc(p.precio)+" MXN":""} ${sold(p)?"· Agotada":"· Disponible"}</small>
+<div class="sk"><span>Piezas</span><button class="l" data-a="m" data-i="${p.id}" aria-label="Quitar una pieza">−</button><input type="number" min="0" step="1" inputmode="numeric" placeholder="—" value="${typeof p.stock==="number"?p.stock:""}" data-i="${p.id}" aria-label="Piezas de ${esc(p.nombre)}"><button class="l" data-a="p" data-i="${p.id}" aria-label="Agregar una pieza">+</button></div>
+<div class="sk"><span>Drop</span><select class="dp" data-i="${p.id}" aria-label="Drop de ${esc(p.nombre)}">${opts(dropOf(p))}</select></div>
+<div class="row"><button class="l" data-a="e" data-i="${p.id}">Editar</button><button class="l" data-a="d" data-i="${p.id}">${sold(p)?"Marcar disponible":"Marcar agotada"}</button><button class="x" data-a="x" data-i="${p.id}">Eliminar</button></div></div></div>`).join(""):"<p>Aún no hay prendas. Agrega la primera arriba.</p>"}
+
+const money=n=>"$"+Number(n||0).toLocaleString("es-MX")+" MXN",errP="No se pudo actualizar el pedido. Revisa tu conexión y que hayas entrado con la cuenta autorizada.";
+const fecha=p=>p.creado?.toDate?.().toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"})||"";
+function renderP(){
+ const pend=pedidos.filter(p=>p.estado==="pendiente"),ant=pedidos.filter(p=>p.estado!=="pendiente").slice(0,20);
+ $("ped").innerHTML=pend.length?pend.map(p=>`<div class="it" style="align-items:flex-start"><div style="flex:1"><b>${esc(p.codigo)} · ${esc(p.nombre)}</b><small>${esc(fecha(p))} · ${money(p.total)}</small>
+<ul style="margin:.4rem 0 .4rem 1.1rem;padding:0">${(p.items||[]).map(i=>`<li>${esc(i.q)}x ${esc(i.n)}${i.t?" (talla "+esc(i.t)+")":""}</li>`).join("")}</ul>
+<small><a href="https://www.google.com/maps?q=${Number(p.lat)},${Number(p.lng)}" target="_blank" rel="noopener">Ver punto de entrega en el mapa</a>${p.referencia?" · "+esc(p.referencia):""}</small>
+<div class="row"><button data-pa="ok" data-pi="${p.id}">Pagado: descontar piezas</button><button class="x" data-pa="no" data-pi="${p.id}">Cancelar pedido</button></div></div></div>`).join(""):"<p>No hay pedidos pendientes.</p>";
+ $("hist").innerHTML=ant.length?ant.map(p=>`<div class="it"><div style="flex:1"><b>${esc(p.codigo)} · ${esc(p.nombre)}</b><small>${p.estado==="pagado"?"Pagado":"Cancelado"} · ${money(p.total)} · ${esc(fecha(p))}</small></div></div>`).join(""):"<p>Aún no hay pedidos anteriores.</p>"}
+
+// confirma el pago: descuenta las piezas de cada prenda con conteo y marca el pedido como pagado (todo junto)
+async function pagar(p){const need={};(p.items||[]).forEach(i=>need[i.id]=(need[i.id]||0)+i.q);const falt=[];
+ await runTransaction(db,async tx=>{falt.length=0;
+  const ps=doc(db,"pedidos",p.id),pd=await tx.get(ps);if(!pd.exists()||pd.data().estado!=="pendiente")return;
+  const snaps=await Promise.all(Object.keys(need).map(id=>tx.get(doc(db,"productos",id)))),wr=[];
+  snaps.forEach(s=>{if(!s.exists())return;const d=s.data();if(typeof d.stock!=="number")return;
+   if(d.stock<need[s.id])falt.push(((p.items||[]).find(i=>i.id===s.id)||{}).n+" (quedan "+Math.max(d.stock,0)+")");else wr.push([s.ref,d.stock-need[s.id]])});
+  if(falt.length)return;wr.forEach(([r,n])=>tx.update(r,{stock:n}));tx.update(ps,{estado:"pagado",pagado:serverTimestamp()})});
+ return falt}
+$("ped").onclick=async e=>{const b=e.target.closest("button");if(!b)return;const p=pedidos.find(x=>x.id===b.dataset.pi);if(!p)return;
+ if(b.dataset.pa==="no"){if(confirm("¿Cancelar el pedido "+p.codigo+"? No se descuentan piezas."))try{await updateDoc(doc(db,"pedidos",p.id),{estado:"cancelado"})}catch{alert(errP)}return}
+ if(b.dataset.pa==="ok"){if(!confirm("¿Ya recibiste el pago de "+p.nombre+" ("+money(p.total)+")? Se van a descontar las piezas."))return;b.disabled=true;
+  try{const falt=await pagar(p);if(falt.length)alert("No alcanzan las piezas de: "+falt.join(", ")+".\nAjusta el conteo en Prendas o cancela el pedido.")}catch{alert(errP)}b.disabled=false}};
+
+$("list").onchange=async e=>{const sl=e.target.closest?.("select.dp");
+ if(sl){const p=items.find(x=>x.id===sl.dataset.i);if(!p)return;const v=sl.value;sl.blur();
+  try{await updateDoc(ref(p.id),v?{dropId:v,drop:deleteField()}:{dropId:deleteField(),...(dropOf(p)?{drop:deleteField()}:{})})}catch{alert("No se pudo cambiar el drop. Revisa tu conexión y que hayas entrado con la cuenta autorizada.");render()}return}
+ const i=e.target.closest?.(".sk input");if(!i)return;const p=items.find(x=>x.id===i.dataset.i);if(!p)return;const v=i.value.trim();i.blur();
+ if(v!==""&&!/^\d+$/.test(v)){alert("Escribe un número entero, 0 o más.");render();return}
+ try{await updateDoc(ref(p.id),{stock:v===""?deleteField():Number(v),...(v===""?{}:flip(p,Number(v)))})}catch{alert(errS);render()}};
+
+$("list").onclick=async e=>{const b=e.target.closest("button");if(!b)return;const p=items.find(x=>x.id===b.dataset.i);if(!p)return;
+ if(b.dataset.a==="d"){if(sold(p)&&typeof p.stock==="number"&&p.stock<=0){alert("Esta prenda tiene 0 piezas. Sube las piezas para ponerla disponible.");return}await updateDoc(ref(p.id),{disponible:sold(p)})}
+ if(b.dataset.a==="p"||b.dataset.a==="m"){const up=b.dataset.a==="p";if(!up&&!(p.stock>0))return;try{await updateDoc(ref(p.id),{stock:increment(up?1:-1),...flip(p,up?1:0)})}catch{alert(errS)}}
+ if(b.dataset.a==="x"&&confirm("¿Eliminar "+p.nombre+"? No se puede deshacer."))await deleteDoc(doc(db,"productos",p.id));
+ if(b.dataset.a==="e"){editId=p.id;foto=p.foto||"";fotos=p.fotos||(p.foto?[p.foto]:[]);$("et").value=p.etiqueta||"";$("nombre").value=p.nombre||"";$("precio").value=p.precio||"";$("tallas").value=p.tallas||"";$("drop").value=dropOf(p);$("desc").value=p.descripcion||"";$("stock").value=typeof p.stock==="number"?p.stock:"";stock0=$("stock").value;
+  $("pv").src=foto;$("pv").hidden=!foto;$("ft").textContent="Editar prenda";$("cancel").hidden=false;scrollTo({top:0,behavior:"smooth"})}};
+
+function reset(){editId=null;foto="";fotos=[];["nombre","precio","tallas","drop","desc","file","et","stock"].forEach(i=>$(i).value="");stock0="";$("pv").hidden=true;$("ft").textContent="Agregar prenda";$("cancel").hidden=true;$("fm").textContent=""}
+$("cancel").onclick=reset;
+
+$("file").onchange=async()=>{const fs=[...$("file").files];if(!fs.length)return;$("fm").style.color="#3D3D3B";fotos=[];
+ try{for(let i=0;i<fs.length;i++){$("fm").textContent="Subiendo foto "+(i+1)+" de "+fs.length+"…";const fd=new FormData();fd.append("file",fs[i]);fd.append("upload_preset",PRESET);
+  const j=await(await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,{method:"POST",body:fd})).json();if(!j.secure_url)throw 0;fotos.push(j.secure_url)}
+  foto=fotos[0];$("pv").src=foto;$("pv").hidden=false;$("fm").textContent=fotos.length+" foto(s) lista(s)."}
+ catch{$("fm").style.color="#9B1C1C";$("fm").textContent="No se pudo subir alguna foto. Prueba de nuevo."}};
+
+$("save").onclick=async()=>{const nombre=$("nombre").value.trim();if(!nombre){alert("Escribe el nombre de la prenda.");return}
+ const sv=$("stock").value.trim();if(sv!==""&&!/^\d+$/.test(sv)){alert("Las piezas deben ser un número entero, 0 o más.");return}
+ const d={nombre,precio:Number($("precio").value)||0,tallas:$("tallas").value.trim(),descripcion:$("desc").value.trim(),foto:fotos[0]||foto,fotos,etiqueta:$("et").value};
+ const dv=$("drop").value;if(dv){d.dropId=dv;if(editId)d.drop=deleteField()}else if(editId){d.dropId=deleteField();const p0=items.find(x=>x.id===editId);if(p0&&dropOf(p0))d.drop=deleteField()}
+ if(editId){if(sv!==stock0){d.stock=sv===""?deleteField():Number(sv);const p=items.find(x=>x.id===editId);if(p&&sv!=="")Object.assign(d,flip(p,Number(sv)))}}else if(sv!=="")d.stock=Number(sv);
+ try{if(editId)await updateDoc(doc(db,"productos",editId),d);else await addDoc(col,{...d,disponible:true,creado:serverTimestamp()});reset()}
+ catch{alert("No se pudo guardar. Revisa tu conexión y que hayas entrado con la cuenta autorizada.")}};
+// drops: crear, editar, ordenar y eliminar
+function dReset(){dEdit=null;$("dnom").value="";$("ddesc").value="";$("dmsg").textContent="";$("dsave").textContent="Guardar drop";$("dcancel").hidden=true}
+$("dcancel").onclick=dReset;
+$("dsave").onclick=async()=>{const nombre=$("dnom").value.trim(),descripcion=$("ddesc").value.trim(),m=$("dmsg");m.textContent="";
+ if(nombre.length<2){m.textContent="Escribe el nombre del drop.";return}
+ if(drops.some(d=>d.id!==dEdit&&norm(d.nombre)===norm(nombre))){m.textContent="Ya existe un drop con ese nombre.";return}
+ try{if(dEdit)await updateDoc(doc(db,"drops",dEdit),{nombre,descripcion});else await addDoc(dcol,{nombre,descripcion,orden:drops.length?Math.max(...drops.map(d=>d.orden??0))+1:0,creado:serverTimestamp()});dReset()}
+ catch{m.textContent="No se pudo guardar el drop. Revisa tu conexión y que las reglas de Firestore incluyan drops."}};
+async function mover(id,dir){const a=[...drops],i=a.findIndex(d=>d.id===id),j=i+dir;if(i<0||j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];
+ const b=writeBatch(db);a.forEach((d,k)=>{if(d.orden!==k)b.update(doc(db,"drops",d.id),{orden:k})});await b.commit()}
+$("dlist").onclick=async e=>{const b=e.target.closest("button");if(!b||!b.dataset.d)return;const dd=drops.find(x=>x.id===b.dataset.i);if(!dd)return;const a=b.dataset.d;
+ try{
+  if(a==="u"||a==="w")await mover(dd.id,a==="u"?-1:1);
+  if(a==="e"){dEdit=dd.id;$("dnom").value=dd.nombre||"";$("ddesc").value=dd.descripcion||"";$("dmsg").textContent="";$("dsave").textContent="Guardar cambios";$("dcancel").hidden=false;$("dnom").focus()}
+  if(a==="x"){const n=items.filter(p=>dropOf(p)===dd.id);if(!confirm("¿Eliminar el drop "+dd.nombre+"?"+(n.length?" Sus "+n.length+" prenda(s) quedarán sin drop (no se borran).":"")))return;
+   const w=writeBatch(db);w.delete(doc(db,"drops",dd.id));n.forEach(p=>w.update(ref(p.id),{dropId:deleteField(),drop:deleteField()}));await w.commit();if(dEdit===dd.id)dReset()}
+ }catch{alert("No se pudo completar. Revisa tu conexión y que hayas entrado con la cuenta autorizada.")}};
+</script></main></body></html>
